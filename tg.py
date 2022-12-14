@@ -3,6 +3,7 @@ import config
 from openpyxl import Workbook
 import time
 import random
+import json
 
 api_id = config.API_ID
 api_hash = config.API_HASH
@@ -15,79 +16,88 @@ def get_comments_by_link(link):
     slink = link.split('/')
     print(slink)
     
-    book = Workbook()
-    sheet = book.active
-    sheet['F1'] = link
-    
+    # book = Workbook()
+    # sheet = book.active
+    # sheet['D1'] = link
+    res = {'link': link,
+           'comments': []}
     c = 2
     for message in client.iter_messages(slink[-2], reply_to=int(slink[-1]), reverse=True):
-        print(message)
-        if isinstance(message.sender, types.User):
-            print(message.date, message.sender.first_name, ':', message.text)
-            sheet[f'A{c}'] = message.date
-            sheet[f'B{c}'] = message.from_id.user_id
-            sheet[f'C{c}'] = message.sender.first_name
-            sheet[f'D{c}'] = message.text
-        else:
-            if message.from_id == None:
-                sheet[f'A{c}'] = message.date
-                sheet[f'B{c}'] = None
-                sheet[f'C{c}'] = 'Author'
-                sheet[f'D{c}'] = message.text
-            else:
-                print(message.date, message.sender.title, ':', message.text)
-                sheet[f'A{c}'] = message.date
-                sheet[f'B{c}'] = message.from_id.user_id
-                sheet[f'C{c}'] = message.sender.title
-                sheet[f'D{c}'] = message.text
+        # print(message)
+        # sheet[f'A{c}'] = message.text
+        res['comments'].append(message.text)
         c += 1
             
-    book.save(slink[-2]+'_'+slink[-1]+".xlsx")
+    # book.save(slink[-2]+'_'+slink[-1]+".xlsx")
+    with open(slink[-2]+'_'+slink[-1]+".json", "w") as write_file:
+        json.dump(res, write_file)
     
         
-def get_comments(channel, post_id, sheet):
+def get_comments_to_excel(channel, post_id, sheet):
     c = 2
-    for message in client.iter_messages(channel, reply_to=int(post_id), reverse=True):
-        if isinstance(message.sender, types.User):
-            sheet[f'A{c}'] = message.date
-            sheet[f'B{c}'] = message.from_id.user_id
-            sheet[f'C{c}'] = message.sender.first_name
-            sheet[f'D{c}'] = message.text
-        else:
-            if message.from_id == None:
-                sheet[f'A{c}'] = message.date
-                sheet[f'B{c}'] = None
-                sheet[f'C{c}'] = 'Author'
-                sheet[f'D{c}'] = message.text
-            else:
-                sheet[f'A{c}'] = message.date
-                sheet[f'B{c}'] = message.from_id.user_id
-                sheet[f'C{c}'] = message.sender.title
-                sheet[f'D{c}'] = message.text
-        c += 1
+    try:
+        for message in client.iter_messages(channel, reply_to=int(post_id), reverse=True):
+            sheet[f'A{c}'] = message.text
+            c += 1
+    except Exception as e:
+        print(f'err: {e}')
+        return 1
             
     
-def get_posts(channel, count):
-    i = 1
+def get_posts_to_excel(channel, count):
+    i = 0
     for message in client.iter_messages(channel):
         print(message.id, message.message)
         
         book = Workbook()
         sheet = book.active
-        sheet['F1'] = f'https://t.me/{channel}/{message.id}'
-        sheet['G1'] = message.message
-        get_comments(channel, message.id, sheet)
-        book.save(f'{channel}/{channel}_{message.id}.xlsx')
-        print(f'{i}/{count} OK')
+        sheet['D1'] = f'https://t.me/{channel}/{message.id}'
+        sheet['E1'] = message.message
+        if get_comments(channel, message.id, sheet) != 1:
+            book.save(f'{channel}/{channel}_{message.id}.xlsx')
+            print(f'{i}/{count} OK')
+            
+            i += 1
+            if i>= count:
+                break
+        else:
+            print(f'{i}/{count} {message.id} error')
+        time.sleep(random.randint(3, 7))
+
+
+def get_comments(channel, message):
+    c = 2
+    res = {'link': f'https://t.me/{channel}/{message.id}',
+           'text': message.message,
+           'comments': []}
+    
+    try:
+        for message in client.iter_messages(channel, reply_to=int(message.id), reverse=True):
+            res['comments'].append(message.text)
+            c += 1
+            
+        with open(channel+'/'+channel+'_'+str(message.id)+".json", "w", encoding="utf-8") as write_file:
+            json.dump(res, write_file, ensure_ascii=False)
+    except Exception as e:
+        print(f'err: {e}')
+        return 1
+            
+    
+def get_posts(channel, count):
+    i = 0
+    for message in client.iter_messages(channel):
+        # print(message.id, message.message)
         
-        i += 1
-        if i>= count:
-            break
-        
+        if get_comments(channel, message) != 1:
+            print(f'{i+1}/{count} OK')
+            
+            i += 1
+            if i>= count:
+                break
+        else:
+            print(f'{i+1}/{count} {message.id} error')
         time.sleep(random.randint(3, 7))
         
 # get_posts('nemorgenshtern', 100)
-
-get_comments_by_link('https://t.me/nemorgenshtern/13336')
-# for message in client.iter_messages(chat):
-#     print(message.sender_id, ':', message.text) https://t.me/nemorgenshtern/13337
+get_posts('bigpencil', 100)
+# get_posts('postupashki', 100)
